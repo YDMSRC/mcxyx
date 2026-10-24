@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC合成小游戏 - 传说篇</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+        body { 
+            background: #2c2c2c; 
+            background-image: 
+                linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222),
+                linear-gradient(45deg, #222 25%, transparent 25%, transparent 75%, #222 75%, #222);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; overflow: hidden; 
+            color: #fff;
+        }
+        
+        /* 暗角遮罩 */
+        body::after {
+            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.6) 100%);
+            pointer-events: none; z-index: 0;
+        }
+
+        /* ================= 主菜单 UI ================= */
+        #mainMenu {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; height: 100%; z-index: 500;
+        }
+
+        @keyframes breathe {
+            0% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.4)); }
+            50% { transform: scale(1.15); filter: drop-shadow(0 0 40px rgba(255, 215, 0, 0.9)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.4)); }
+        }
+        .menu-cmdblock {
+            width: 140px; height: 140px;
+            background-image: url('方块素材/命令方块.gif');
+            background-size: contain; background-position: center; background-repeat: no-repeat;
+            image-rendering: pixelated;
+            animation: breathe 2.5s ease-in-out infinite;
+            margin-bottom: 20px;
+            z-index: 10;
+        }
+
+        .menu-title {
+            font-size: 48px; font-weight: bold; color: #f7d44a;
+            text-shadow: 0 0 20px #ffd700, 4px 4px 0 #000;
+            letter-spacing: 4px; margin-bottom: 50px; z-index: 10;
+        }
+
+        .menu-btn {
+            background: #3a3a3a; color: #fff; border: 3px solid #555;
+            font-size: 22px; font-weight: bold; font-family: 'Courier New', Courier, monospace;
+            padding: 12px 60px; margin-bottom: 15px; border-radius: 8px;
+            cursor: pointer; box-shadow: 0 5px 0 #1a1a1a; transition: 0.1s;
+            letter-spacing: 2px; width: 300px; text-align: center; z-index: 10;
+        }
+        .menu-btn:hover { background: #4a4a4a; border-color: #888; }
+        .menu-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #1a1a1a; }
+
+        /* ================= 游戏 UI ================= */
+        #gameUI {
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; height: 100%; position: relative; z-index: 10;
+        }
+        
+        /* 计时器 */
+        #timerDisplay {
+            position: absolute; top: 20px; right: 20px;
+            font-size: 32px; font-weight: bold; color: #ff5252;
+            text-shadow: 0 0 10px rgba(255, 82, 82, 0.5), 2px 2px 0 #000;
+            font-family: 'Courier New', Courier, monospace;
+            display: none;
+        }
+
+        .game-container { display: flex; align-items: center; gap: 30px; margin-bottom: 30px; position: relative; z-index: 10; }
+
+        .board-wrapper {
+            padding: 4px; background: #e2e2e2; box-shadow: 2px 2px 0px #ffffff, -2px -2px 0px #777;
+            transition: all 0.3s ease;
+        }
+
+        .board {
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            grid-template-rows: repeat(2, 1fr);
+            gap: 8px; 
+        }
+
+        .board.level-3x3 {
+            grid-template-columns: repeat(3, 1fr); 
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        .cell {
+            width: 90px; height: 90px; background: #8b8b8b; position: relative; cursor: pointer;
+            border: 4px solid #000; border-top-color: #000; border-left-color: #000; border-bottom-color: #fff; border-right-color: #fff;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* 优化后的 MC 风格箭头 */
+        .arrow { 
+            font-size: 60px; 
+            color: #ccc; 
+            text-shadow: 2px 2px 0px #555, -1px -1px 0px #fff; 
+            pointer-events: none; 
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+
+        .spawn-wrapper { padding: 6px; background: #e2e2e2; box-shadow: 2px 2px 0px #ffffff, -2px -2px 0px #777; }
+        .spawn-box {
+            width: 90px; height: 90px; background: #8b8b8b; cursor: pointer; position: relative;
+            border: 4px solid #000; border-top-color: #000; border-left-color: #000; border-bottom-color: #fff; border-right-color: #fff;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .block {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+            pointer-events: none; 
+            background-color: transparent;
+            background-size: 85%; 
+            background-position: center;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        .floating-block {
+            position: fixed; pointer-events: none; z-index: 999;
+            transform: translate(-50%, -50%); 
+            filter: drop-shadow(0px 10px 10px rgba(0,0,0,0.6)); 
+            transition: transform 0.05s;
+            background-size: 85%; background-position: center; background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        @keyframes phaseClear {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.2); filter: brightness(2) drop-shadow(0 0 20px #fff); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+        .phase-clear { animation: phaseClear 0.8s ease-out forwards; }
+
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .shake { animation: shake 0.2s ease; }
+
+        .controls {
+            display: flex; gap: 20px; background: #1e1e1e; padding: 10px 20px; border-radius: 8px; border: 2px solid #555;
+            font-size: 18px; font-weight: bold; color: #ddd; cursor: pointer; transition: 0.2s; z-index: 10;
+        }
+        .controls:hover { background: #2a2a2a; border-color: #888; }
+        .controls input { width: 20px; height: 20px; cursor: pointer; accent-color: #4CAF50;}
+
+        .phase-title {
+            font-size: 24px; color: #f7d44a; text-shadow: 2px 2px 0 #000; margin-bottom: 10px; font-weight: bold; z-index: 10;
+            display: flex; align-items: center; gap: 15px;
+        }
+
+        .hard-tag {
+            font-size: 14px; background: #c62828; color: white; padding: 2px 8px; border-radius: 4px;
+            box-shadow: 0 2px 0 #8e0000; display: none; font-family: sans-serif;
+        }
+
+        .back-btn {
+            position: absolute; top: 20px; left: 20px; background: #c62828; color: white;
+            border: 2px solid #fff; border-radius: 6px; padding: 8px 16px; font-weight: bold;
+            cursor: pointer; box-shadow: 0 3px 0 #8e0000; transition: 0.1s; z-index: 100;
+        }
+        .back-btn:active { transform: translateY(3px); box-shadow: none; }
+
+        /* ================= 弹窗通用样式 ================= */
+        .overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100000;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        /* 通关结算画面 */
+        .win-block {
+            width: 200px; height: 200px;
+            background-image: url('方块素材/命令方块.gif');
+            background-size: contain; background-position: center; background-repeat: no-repeat;
+            image-rendering: pixelated;
+            animation: breathe 2.5s ease-in-out infinite;
+            margin-bottom: 40px;
+        }
+        .win-text { font-size: 48px; font-weight: bold; color: #f7d44a; text-shadow: 0 0 20px #ffd700, 4px 4px 0 #000; letter-spacing: 4px; margin-bottom: 50px; }
+
+        /* 死局提示画面 */
+        .sad-text { font-size: 40px; font-weight: bold; color: #ff5252; text-shadow: 0 0 20px #ff0000, 2px 2px 0 #000; margin-bottom: 20px; text-align: center; }
+        .lose-block-showcase { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 40px; }
+        .lose-block-img {
+            width: 100px; height: 100px; background-size: contain; background-position: center; background-repeat: no-repeat;
+            image-rendering: pixelated; animation: shake 2s infinite ease-in-out; filter: drop-shadow(0 0 15px rgba(255, 82, 82, 0.5)); 
+        }
+        .sad-subtext { font-size: 22px; color: #ffeb3b; font-weight: bold; text-shadow: 1px 1px 2px #000; }
+
+        .restart-btn {
+            background: #2e7d32; color: white; font-size: 24px; font-weight: bold; font-family: 'Courier New', Courier, monospace;
+            padding: 15px 40px; border: 2px solid #fff; border-radius: 8px; cursor: pointer; box-shadow: 0 5px 0 #1b5e20;
+            transition: 0.1s; letter-spacing: 2px;
+        }
+        .restart-btn:active { transform: translateY(5px); box-shadow: 0 0 0 #1b5e20; }
+        .btn-red { background: #c62828; box-shadow: 0 5px 0 #8e0000; }
+        .btn-red:active { box-shadow: 0 0 0 #8e0000; }
+
+        /* ================= 菜单面板通用样式 ================= */
+        .menu-panel {
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(20, 20, 20, 0.95); border: 4px solid #4CAF50; border-radius: 12px;
+            padding: 30px; flex-direction: column; align-items: center; width: 420px; z-index: 1000;
+            box-shadow: 0 0 30px rgba(76, 175, 80, 0.3);
+        }
+        .menu-panel h2 { color: #4CAF50; margin-bottom: 25px; font-size: 28px; }
+        
+        /* 关于界面 */
+        .about-row {
+            display: flex; align-items: center; justify-content: center; gap: 15px;
+            margin-bottom: 20px; font-size: 20px; width: 100%;
+        }
+        /* 强制图片等比缩放，防止变形 */
+        .about-row img { 
+            height: 45px; 
+            max-width: 120px;
+            object-fit: contain; 
+            border-radius: 4px;
+        }
+        .about-row a { color: #4CAF50; text-decoration: none; font-weight: bold; }
+        .about-row a:hover { text-decoration: underline; }
+
+        .setting-row { width: 100%; margin-bottom: 20px; text-align: center; font-size: 18px; }
+        .setting-row input[type="range"] { width: 100%; margin-top: 10px; accent-color: #4CAF50; }
+
+        /* ================= 开发者面板 ================= */
+        #devPanel {
+            display: none; position: fixed; top: 50px; left: 50px;
+            background: rgba(20, 20, 20, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            z-index: 10000; flex-direction: column; font-family: 'Courier New', Courier, monospace; width: 340px; overflow: hidden;
+        }
+        .dev-header { background: rgba(0, 0, 0, 0.4); padding: 12px 15px; color: #4CAF50; font-weight: bold; font-size: 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: move; text-shadow: 0 0 5px #4CAF50; }
+        .dev-close-icon { cursor: pointer; color: #ff5252; font-size: 18px; transition: 0.2s; }
+        .dev-close-icon:hover { color: #ff1744; transform: scale(1.2); }
+        .dev-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .dev-row { display: flex; justify-content: space-between; align-items: center; color: #eee; font-size: 14px; text-shadow: 1px 1px 2px #000; }
+        .dev-row input, .dev-row select { background: rgba(0, 0, 0, 0.5); border: 1px solid rgba(255,255,255,0.2); color: #4CAF50; padding: 6px; width: 80px; text-align: center; font-family: 'Courier New', Courier, monospace; font-weight: bold; outline: none; border-radius: 4px; }
+        .dev-btn { background: rgba(46, 125, 50, 0.8); color: white; border: none; padding: 6px 12px; cursor: pointer; font-weight: bold; border-radius: 4px; transition: 0.2s; border: 1px solid rgba(255,255,255,0.1); }
+        .dev-btn:hover { background: rgba(76, 175, 80, 1); }
+        .dev-group { border-top: 1px dashed rgba(255,255,255,0.2); padding-top: 12px; margin-top: 5px; }
+        .dev-title { font-size: 12px; color: #888; margin-bottom: 8px; }
+
+    </style>
+</head>
+<body>
+
+    <!-- ================= 主菜单 ================= -->
+    <div id="mainMenu">
+        <div class="menu-cmdblock"></div>
+        <div class="menu-title">MC合成小游戏</div>
+        
+        <button class="menu-btn" id="btnOpenStart">开始游戏</button>
+        <button class="menu-btn" id="btnOpenSettings">设置</button>
+        <button class="menu-btn" id="btnOpenAbout">关于</button>
+    </div>
+
+    <!-- ================= 模式选择面板 ================= -->
+    <div class="menu-panel" id="startPanel">
+        <h2>选择难度</h2>
+        <button class="menu-btn" id="btnStartEasy" style="border-color: #4CAF50;">简单模式</button>
+        <button class="menu-btn" id="btnStartHard" style="border-color: #c62828; color: #ff5252;">困难模式 (5分钟限时)</button>
+        <button class="restart-btn" id="btnCloseStart" style="font-size: 16px; padding: 8px 20px; margin-top: 20px;">取消</button>
+    </div>
+
+    <!-- ================= 游戏 UI ================= -->
+    <div id="gameUI">
+        <div id="timerDisplay">05:00</div>
+        <button class="back-btn" id="btnBackMenu">返回菜单</button>
+        
+        <div class="phase-title">
+            <span id="phaseTitle">当前阶段：主世界</span>
+            <span class="hard-tag" id="hardTag">[困难模式]</span>
+        </div>
+
+        <div class="game-container">
+            <div class="board-wrapper" id="boardWrapper">
+                <div class="board" id="board"></div>
+            </div>
+            <div class="arrow">➔</div>
+            <div class="spawn-wrapper">
+                <div class="spawn-box" id="spawnBox"></div>
+            </div>
+        </div>
+
+        <label class="controls">
+            <input type="checkbox" id="autoFillToggle"> 自动填充
+        </label>
+    </div>
+
+    <!-- ================= 设置面板 ================= -->
+    <div class="menu-panel" id="settingsPanel">
+        <h2>设置</h2>
+        <div class="setting-row">
+            <div>冰冰冰 速度上限:</div>
+            <div style="font-size: 14px; color: #aaa; margin-top:5px;" id="speedDisplay">1.5x</div>
+            <input type="range" id="speedSlider" min="1.1" max="2.5" step="0.1" value="1.5">
+        </div>
+        <button class="restart-btn" id="btnCloseSettings" style="font-size: 16px; padding: 8px 20px; margin-top: 20px;">保存并返回</button>
+    </div>
+
+    <!-- ================= 关于面板 ================= -->
+    <div class="menu-panel" id="aboutPanel">
+        <h2>关于</h2>
+        <div class="about-row">
+            <img src="关于/小Y.jpg" alt="小Y">
+            <span>作者：小Y</span>
+        </div>
+        <div class="about-row">
+            <img src="关于/DeepSeek.svg" alt="DeepSeek">
+            <span>作者：DeepSeek</span>
+        </div>
+        <div class="about-row">
+            <img src="关于/wiki.png" alt="Wiki">
+            <span>资源来源：<a href="https://zh.minecraft.wiki/" target="_blank">Wiki</a></span>
+        </div>
+        <button class="restart-btn" id="btnCloseAbout" style="font-size: 16px; padding: 8px 20px; margin-top: 20px;">返回</button>
+    </div>
+
+    <!-- ================= 结算弹窗 ================= -->
+    <div class="overlay" id="winScreen">
+        <div class="win-block"></div>
+        <div class="win-text">恭喜过关！</div>
+        <button class="restart-btn" id="btnRestartWin">返回菜单</button>
+    </div>
+
+    <div class="overlay" id="loseScreen">
+        <div class="sad-text">运气不好，卷土重来？</div>
+        <div class="lose-block-showcase">
+            <div class="lose-block-img" id="loseBlockImg"></div>
+            <div class="sad-subtext" id="loseReason">被该方块卡住了</div>
+        </div>
+        <button class="restart-btn btn-red" id="btnRestartLose">返回菜单</button>
+    </div>
+
+    <!-- ================= 开发者面板 ================= -->
+    <div id="devPanel">
+        <div class="dev-header" id="devHeader">
+            <span>开发者调试箱</span>
+            <span class="dev-close-icon" id="btnCloseDev">✖</span>
+        </div>
+        <div class="dev-body">
+            <div class="dev-title">基础作弊</div>
+            <div class="dev-row">
+                <span>刷取方块(1-38):</span>
+                <input type="number" id="devSpawnLevel" value="10" min="1" max="38">
+                <button class="dev-btn" id="btnSetSpawn">右侧刷新</button>
+            </div>
+            <div class="dev-row">
+                <span>强制塞入等级:</span>
+                <input type="number" id="devFillLevel" value="37" min="1" max="38">
+                <button class="dev-btn" id="btnFill">塞入两个</button>
+            </div>
+            <div class="dev-row">
+                <span>跳转大阶段:</span>
+                <select id="devPhaseSelect">
+                    <option value="0">1. 主世界</option>
+                    <option value="1">2. 下界与深暗</option>
+                    <option value="2">3. 魔法与功能</option>
+                    <option value="3">4. 末地与传说</option>
+                </select>
+                <button class="dev-btn" id="btnPhase">跳转</button>
+            </div>
+
+            <div class="dev-group">
+                <div class="dev-title">全局控制</div>
+                <div class="dev-row">
+                    <span>全场方块升级:</span>
+                    <button class="dev-btn" id="btnLevelUp">全部 +1 级</button>
+                    <button class="dev-btn" id="btnLevelDown">全部 -1 级</button>
+                </div>
+                <div class="dev-row">
+                    <span>强制扩容:</span>
+                    <button class="dev-btn" id="btnForce3x3">变成 3x3</button>
+                    <button class="dev-btn" id="btnForce2x2">变成 2x2</button>
+                </div>
+                <div class="dev-row">
+                    <span>死局测试:</span>
+                    <button class="dev-btn" id="btnForceLose" style="width: 100%; background: rgba(198, 40, 40, 0.8);">立刻塞满且无对子</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ================== 游戏核心数据 ==================
+            const phases = [
+                { name: "主世界", blocks: [ { id: 1, file: "泥土.webp" }, { id: 2, file: "圆石.webp" }, { id: 3, file: "煤矿石.webp" }, { id: 4, file: "铜矿石.webp" }, { id: 5, file: "铁矿石.webp" }, { id: 6, file: "金矿石.webp" }, { id: 7, file: "红石矿石.webp" }, { id: 8, file: "青金石矿石.webp" }, { id: 9, file: "绿宝石矿石.webp" }, { id: 10, file: "钻石矿石.webp" }, { id: 11, file: "紫水晶块.webp" }, { id: 12, file: "潮涌核心.webp" }, { id: 13, file: "信标.webp" } ] },
+                { name: "下界与深暗", blocks: [ { id: 14, file: "黑曜石.webp" }, { id: 15, file: "哭泣的黑曜石.webp" }, { id: 16, file: "荧石.webp" }, { id: 17, file: "灵魂沙.webp" }, { id: 18, file: "黑石.webp" }, { id: 19, file: "绯红菌岩.webp" }, { id: 20, file: "幽匿块.gif" }, { id: 21, file: "幽匿感测体.webp" }, { id: 22, file: "幽匿催发体.webp" }, { id: 23, file: "幽匿尖啸体.gif" }, { id: 24, file: "下界合金块.webp" } ] },
+                { name: "魔法与功能", blocks: [ { id: 25, file: "工作台.webp" }, { id: 26, file: "熔炉.webp" }, { id: 27, file: "铁砧.webp" }, { id: 28, file: "书架.webp" }, { id: 29, file: "附魔台.webp" }, { id: 30, file: "末影箱.webp" }, { id: 31, file: "磁石.webp" }, { id: 32, file: "重生锚.webp" }, { id: 33, file: "附魔金苹果.gif" } ] },
+                { name: "末地与传说", blocks: [ { id: 34, file: "末地石.webp" }, { id: 35, file: "紫珀块.webp" }, { id: 36, file: "龙蛋.webp" }, { id: 37, file: "末地传送门框架.webp" }, { id: 38, file: "命令方块.gif" } ] }
+            ];
+
+            const styleSheet = document.createElement("style");
+            let cssRules = "";
+            phases.forEach((phase) => {
+                phase.blocks.forEach((block) => {
+                    cssRules += `.block[data-level="${block.id}"] { background-image: url('方块素材/${block.file}'); }\n`;
+                });
+            });
+            styleSheet.textContent = cssRules;
+            document.head.appendChild(styleSheet);
+
+            // ================== 游戏状态 ==================
+            let currentPhaseIndex = 0;
+            let currentSize = 2; 
+            let TOTAL_CELLS = currentSize * currentSize; 
+            let grid = new Array(TOTAL_CELLS).fill(0); 
+            let spawnLevel = 1; 
+            
+            let heldSource = null; 
+            let heldLevel = 0;     
+            let floatingEl = null;
+            let autoFillTimer = null;
+            let isAutoFilling = false; 
+            let isGameOver = false;
+            let isTransitioning = false;
+
+            // 模式与计时器
+            let isHardMode = false;
+            let timeLeft = 300; // 5分钟
+            let timerInterval = null;
+
+            // 动态设置：速度与难度
+            let baseSpeed = 1.1;
+            let maxSpeed = 1.5; 
+
+            // DOM
+            const mainMenu = document.getElementById('mainMenu');
+            const gameUI = document.getElementById('gameUI');
+            const board = document.getElementById('board');
+            const spawnBox = document.getElementById('spawnBox');
+            const autoFillToggle = document.getElementById('autoFillToggle');
+            const phaseTitle = document.getElementById('phaseTitle');
+            const winScreen = document.getElementById('winScreen');
+            const loseScreen = document.getElementById('loseScreen');
+            const loseBlockImg = document.getElementById('loseBlockImg');
+            const loseReason = document.getElementById('loseReason');
+            const timerDisplay = document.getElementById('timerDisplay');
+            const hardTag = document.getElementById('hardTag');
+            let cellElements = [];
+
+            // 音效
+            const mergeSound = new Audio('冰冰冰.mp3');
+            const upgradeSound = new Audio('fahhhhhhhhhhhhhh.mp3');
+            const phaseClearSound = new Audio('anime-wow.mp3');
+            const winSound = new Audio('du-bist-gut-genug.mp3');
+            const sadSound = new Audio('sad-violin-the-meme-one.mp3');
+            
+            winSound.loop = true; 
+            sadSound.loop = false;
+
+            function playSpawnOrMergeSound() {
+                if (isGameOver) return;
+                mergeSound.currentTime = 0; 
+                let randomSpeed = baseSpeed + (Math.random() * (maxSpeed - baseSpeed));
+                mergeSound.playbackRate = randomSpeed; 
+                mergeSound.preservesPitch = false; 
+                mergeSound.play().catch(() => {});
+            }
+
+            function createBlock(level) {
+                const el = document.createElement('div');
+                el.className = 'block';
+                el.setAttribute('data-level', level);
+                return el;
+            }
+
+            function rebuildBoard(newSize) {
+                currentSize = newSize;
+                TOTAL_CELLS = currentSize * currentSize;
+                if (currentSize === 3) board.classList.add('level-3x3');
+                else board.classList.remove('level-3x3');
+
+                board.innerHTML = '';
+                cellElements = [];
+                
+                for (let i = 0; i < TOTAL_CELLS; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    
+                    cell.addEventListener('click', () => {
+                        if (isGameOver || isTransitioning) return;
+                        if (heldSource !== null) dropOnCell(i);
+                        else if (grid[i] > 0) pickUp(i, grid[i]);
+                    });
+
+                    cell.addEventListener('contextmenu', (e) => {
+                        e.preventDefault(); 
+                        if (isGameOver || isTransitioning) return;
+                        e.stopPropagation(); cancelHolding();
+                    });
+
+                    board.appendChild(cell);
+                    cellElements.push(cell);
+                }
+            }
+
+            function getCurrentPhaseMaxLevel() { return phases[currentPhaseIndex].blocks[phases[currentPhaseIndex].blocks.length - 1].id; }
+            function getCurrentPhaseMinLevel() { return phases[currentPhaseIndex].blocks[0].id; }
+
+            function getMaxLevelOnBoard() {
+                let maxLvl = 0;
+                for (let i = 0; i < grid.length; i++) { if (grid[i] > maxLvl) maxLvl = grid[i]; }
+                return maxLvl;
+            }
+
+            function refreshSpawnLevel() {
+                const maxOnBoard = getMaxLevelOnBoard();
+                const minLevel = getCurrentPhaseMinLevel();
+                const maxLevel = getCurrentPhaseMaxLevel();
+
+                if (maxOnBoard === 0) { spawnLevel = minLevel; return; }
+
+                let targetLevel = Math.max(minLevel, maxOnBoard - 3);
+                if (Math.random() < 0.4 && targetLevel + 1 <= maxOnBoard) targetLevel += 1;
+
+                // 🔥 防卡死机制：绝对不能直接生成当前阶段的最终目标
+                targetLevel = Math.min(targetLevel, maxLevel - 1); 
+                if (targetLevel < minLevel) targetLevel = minLevel;
+                spawnLevel = targetLevel;
+            }
+
+            function hasMergeablePair() {
+                let counts = {};
+                const maxLvl = getCurrentPhaseMaxLevel();
+                for (let i = 0; i < grid.length; i++) {
+                    const lvl = grid[i];
+                    if (lvl > 0 && lvl < maxLvl) counts[lvl] = (counts[lvl] || 0) + 1;
+                }
+                for (let lvl in counts) { if (counts[lvl] >= 2) return true; }
+                return false;
+            }
+
+            function getBlockerBlock() {
+                let maxLvl = getMaxLevelOnBoard();
+                if (maxLvl === 0) return null;
+                for (let phase of phases) {
+                    for (let block of phase.blocks) {
+                        if (block.id === maxLvl) return block;
+                    }
+                }
+                return null;
+            }
+
+            function checkDeadlockAndUpgrade() {
+                if (isGameOver || isTransitioning) return; 
+                
+                const isFull = grid.indexOf(0) === -1;
+                const canMerge = hasMergeablePair();
+
+                if (isFull && !canMerge) {
+                    if (currentSize === 2) {
+                        upgradeSound.currentTime = 0; upgradeSound.volume = 1.0; upgradeSound.play().catch(() => {});
+                        if (floatingEl) { floatingEl.remove(); floatingEl = null; }
+                        heldSource = null; heldLevel = 0;
+
+                        const oldGrid = [...grid];
+                        rebuildBoard(3); 
+                        grid = new Array(TOTAL_CELLS).fill(0);
+                        grid[0] = oldGrid[0]; grid[1] = oldGrid[1]; grid[3] = oldGrid[2]; grid[4] = oldGrid[3]; 
+                        
+                        cellElements.forEach(c => {
+                            c.classList.add('shake');
+                            setTimeout(() => c.classList.remove('shake'), 300);
+                        });
+                    } else {
+                        isGameOver = true;
+                        clearInterval(timerInterval); // 停止计时
+                        sadSound.currentTime = 0;
+                        sadSound.play().catch(() => {});
+
+                        const blocker = getBlockerBlock();
+                        if (blocker) {
+                            loseBlockImg.style.backgroundImage = `url('方块素材/${blocker.file}')`;
+                            loseReason.textContent = `被 ${blocker.file.split('.')[0]} 卡住了`;
+                        } else {
+                            loseReason.textContent = "场上已无可以合成的方块";
+                        }
+                        loseScreen.style.display = 'flex';
+                    }
+                }
+            }
+
+            function updateUI() {
+                for (let i = 0; i < TOTAL_CELLS; i++) {
+                    cellElements[i].innerHTML = '';
+                    if (grid[i] > 0 && i !== heldSource) cellElements[i].appendChild(createBlock(grid[i]));
+                }
+                spawnBox.innerHTML = '';
+                if (heldSource !== 'spawn' && !isGameOver && !isTransitioning) spawnBox.appendChild(createBlock(spawnLevel));
+                checkAutoFill();
+            }
+
+            function checkAutoFill() {
+                if (isGameOver || isTransitioning) return;
+                checkDeadlockAndUpgrade(); 
+                
+                if (!autoFillToggle.checked || heldSource !== null || isAutoFilling) return;
+                const emptyIndex = grid.indexOf(0);
+                if (emptyIndex === -1) return;
+                if (hasMergeablePair()) return;
+
+                isAutoFilling = true;
+                autoFillTimer = setTimeout(() => {
+                    if (isGameOver || isTransitioning || !autoFillToggle.checked || heldSource !== null) { isAutoFilling = false; return; }
+                    if (hasMergeablePair()) { isAutoFilling = false; updateUI(); return; }
+
+                    const currentEmpty = grid.indexOf(0);
+                    if (currentEmpty !== -1) {
+                        grid[currentEmpty] = spawnLevel; playSpawnOrMergeSound(); refreshSpawnLevel(); 
+                        isAutoFilling = false; checkDeadlockAndUpgrade(); updateUI(); 
+                    } else { isAutoFilling = false; checkDeadlockAndUpgrade(); }
+                }, 200);
+            }
+
+            function pickUp(source, level) {
+                if (isGameOver || isTransitioning || heldSource !== null) return; 
+                heldSource = source; heldLevel = level;
+                if (source !== 'spawn') grid[source] = 0; else refreshSpawnLevel();
+
+                floatingEl = createBlock(heldLevel);
+                floatingEl.classList.add('floating-block');
+                floatingEl.setAttribute('data-level', level); 
+                
+                let targetSize = source !== 'spawn' ? `${cellElements[source].getBoundingClientRect().width}px` : `${spawnBox.getBoundingClientRect().width}px`;
+                floatingEl.style.width = targetSize; floatingEl.style.height = targetSize;
+                document.body.appendChild(floatingEl);
+                updateUI();
+            }
+
+            function dropOnCell(targetIndex) {
+                if (isGameOver || isTransitioning || heldSource === null) return;
+                if (targetIndex === heldSource) { cancelHolding(); return; }
+
+                if (grid[targetIndex] === 0) {
+                    grid[targetIndex] = heldLevel; finishHolding(); checkDeadlockAndUpgrade(); return;
+                }
+
+                if (grid[targetIndex] > 0) {
+                    const maxLvl = getCurrentPhaseMaxLevel();
+                    if (grid[targetIndex] === heldLevel && heldLevel < maxLvl) {
+                        const nextLevel = heldLevel + 1;
+                        
+                        if (nextLevel === 38) {
+                            playSpawnOrMergeSound();
+                            cellElements[targetIndex].classList.add('phase-clear');
+                            
+                            setTimeout(() => {
+                                mergeSound.pause(); upgradeSound.pause(); phaseClearSound.pause();
+                                isGameOver = true;
+                                clearInterval(timerInterval); // 停止计时
+                                grid = new Array(TOTAL_CELLS).fill(0);
+                                heldSource = null; heldLevel = 0;
+                                if (floatingEl) { floatingEl.remove(); floatingEl = null; }
+                                updateUI();
+                                
+                                winSound.currentTime = 0;
+                                winSound.play().catch(() => {});
+                                winScreen.style.display = 'flex';
+                            }, 800);
+                        } 
+                        else if (nextLevel === maxLvl) {
+                            playSpawnOrMergeSound();
+                            cellElements[targetIndex].classList.add('phase-clear');
+                            isTransitioning = true; 
+                            if (floatingEl) { floatingEl.remove(); floatingEl = null; }
+                            heldSource = null; heldLevel = 0;
+
+                            setTimeout(() => {
+                                phaseClearSound.currentTime = 0; phaseClearSound.play().catch(() => {});
+                                grid = new Array(TOTAL_CELLS).fill(0);
+                                currentPhaseIndex++;
+                                spawnLevel = phases[currentPhaseIndex].blocks[0].id;
+                                phaseTitle.textContent = `当前阶段：${phases[currentPhaseIndex].name}`;
+                                phaseTitle.style.color = "#00ff00";
+                                isTransitioning = false; 
+                                updateUI();
+                            }, 800);
+                        } 
+                        else {
+                            playSpawnOrMergeSound();
+                            grid[targetIndex] = nextLevel; 
+                            cellElements[targetIndex].classList.add('shake');
+                            setTimeout(() => cellElements[targetIndex].classList.remove('shake'), 200);
+                            finishHolding(); checkDeadlockAndUpgrade();
+                        }
+                    } else {
+                        cellElements[targetIndex].classList.add('shake');
+                        setTimeout(() => cellElements[targetIndex].classList.remove('shake'), 200);
+                    }
+                }
+            }
+
+            function finishHolding() {
+                heldSource = null; heldLevel = 0;
+                if (floatingEl) { floatingEl.remove(); floatingEl = null; }
+                updateUI();
+            }
+
+            function cancelHolding() {
+                if (isGameOver || isTransitioning || heldSource === null) return;
+                if (heldSource !== 'spawn') grid[heldSource] = heldLevel; 
+                finishHolding();
+            }
+
+            // ================== 计时器逻辑 ==================
+            function startTimer() {
+                clearInterval(timerInterval);
+                timeLeft = 300; // 重置为5分钟
+                timerDisplay.textContent = formatTime(timeLeft);
+                timerDisplay.style.color = "#ff5252";
+                timerDisplay.style.display = 'block';
+                
+                timerInterval = setInterval(() => {
+                    if (isGameOver) return;
+                    timeLeft--;
+                    timerDisplay.textContent = formatTime(timeLeft);
+                    
+                    if (timeLeft <= 60) {
+                        timerDisplay.style.color = "#ff0000";
+                    }
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        isGameOver = true;
+                        sadSound.currentTime = 0;
+                        sadSound.play().catch(() => {});
+                        
+                        loseBlockImg.style.backgroundImage = `url('方块素材/命令方块.gif')`;
+                        loseReason.textContent = "时间耗尽，未能合成命令方块！";
+                        loseScreen.style.display = 'flex';
+                    }
+                }, 1000);
+            }
+
+            function formatTime(seconds) {
+                const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                return `${m}:${s}`;
+            }
+
+            // ================== 游戏开始与重置 ==================
+            function startGame(hardMode) {
+                isHardMode = hardMode;
+                mainMenu.style.display = 'none';
+                gameUI.style.display = 'flex';
+                winScreen.style.display = 'none';
+                loseScreen.style.display = 'none';
+                
+                isGameOver = false;
+                isTransitioning = false; 
+                currentPhaseIndex = 0;
+                isAutoFilling = false;
+                clearTimeout(autoFillTimer);
+                
+                winSound.pause(); winSound.currentTime = 0; 
+                sadSound.pause(); sadSound.currentTime = 0;
+                
+                rebuildBoard(2);
+                spawnLevel = phases[0].blocks[0].id;
+                phaseTitle.textContent = `当前阶段：${phases[0].name}`;
+                phaseTitle.style.color = "#f7d44a"; 
+                
+                heldSource = null; heldLevel = 0;
+                if (floatingEl) { floatingEl.remove(); floatingEl = null; }
+                
+                grid = new Array(TOTAL_CELLS).fill(0);
+
+                if (isHardMode) {
+                    autoFillToggle.checked = true; 
+                    hardTag.style.display = 'inline-block'; // 显示困难标签
+                    startTimer();
+                } else {
+                    autoFillToggle.checked = false; 
+                    hardTag.style.display = 'none'; // 隐藏困难标签
+                    timerDisplay.style.display = 'none';
+                    clearInterval(timerInterval);
+                }
+                
+                updateUI();
+            }
+
+            // ================== 菜单交互逻辑 ==================
+            document.getElementById('btnOpenStart').addEventListener('click', () => {
+                document.getElementById('startPanel').style.display = 'flex';
+            });
+            document.getElementById('btnCloseStart').addEventListener('click', () => {
+                document.getElementById('startPanel').style.display = 'none';
+            });
+            
+            document.getElementById('btnStartEasy').addEventListener('click', () => {
+                document.getElementById('startPanel').style.display = 'none';
+                startGame(false);
+            });
+            document.getElementById('btnStartHard').addEventListener('click', () => {
+                document.getElementById('startPanel').style.display = 'none';
+                startGame(true);
+            });
+
+            // 设置面板
+            document.getElementById('btnOpenSettings').addEventListener('click', () => {
+                document.getElementById('settingsPanel').style.display = 'flex';
+            });
+            document.getElementById('btnCloseSettings').addEventListener('click', () => {
+                document.getElementById('settingsPanel').style.display = 'none';
+            });
+            
+            const speedSlider = document.getElementById('speedSlider');
+            const speedDisplay = document.getElementById('speedDisplay');
+            speedSlider.addEventListener('input', (e) => {
+                maxSpeed = parseFloat(e.target.value);
+                speedDisplay.textContent = `${maxSpeed.toFixed(1)}x`;
+            });
+
+            // 关于面板
+            document.getElementById('btnOpenAbout').addEventListener('click', () => {
+                document.getElementById('aboutPanel').style.display = 'flex';
+            });
+            document.getElementById('btnCloseAbout').addEventListener('click', () => {
+                document.getElementById('aboutPanel').style.display = 'none';
+            });
+
+            function returnToMenu() {
+                winScreen.style.display = 'none';
+                loseScreen.style.display = 'none';
+                gameUI.style.display = 'none';
+                mainMenu.style.display = 'flex';
+                winSound.pause(); 
+                sadSound.pause();
+                clearInterval(timerInterval);
+            }
+
+            document.getElementById('btnBackMenu').addEventListener('click', returnToMenu);
+            document.getElementById('btnRestartWin').addEventListener('click', returnToMenu);
+            document.getElementById('btnRestartLose').addEventListener('click', returnToMenu);
+
+            // ================== 开发者面板相关 ==================
+            let devCode = ['Y', 'D', 'M', 'S', 'R', 'C'];
+            let inputBuffer = [];
+            const devPanel = document.getElementById('devPanel');
+            const devHeader = document.getElementById('devHeader');
+            const btnCloseDev = document.getElementById('btnCloseDev');
+
+            window.addEventListener('keydown', (e) => {
+                if (e.getModifierState && e.getModifierState('CapsLock')) {
+                    const key = e.key.toUpperCase();
+                    if (key === devCode[inputBuffer.length]) {
+                        inputBuffer.push(key);
+                        if (inputBuffer.length === devCode.length) {
+                            inputBuffer = [];
+                            devPanel.style.display = 'flex'; 
+                        }
+                    } else { inputBuffer = []; }
+                }
+            });
+
+            btnCloseDev.addEventListener('click', () => { devPanel.style.display = 'none'; });
+
+            let isDragging = false;
+            let dragStartX, dragStartY, initialLeft, initialTop;
+
+            devHeader.addEventListener('mousedown', (e) => {
+                isDragging = true; dragStartX = e.clientX; dragStartY = e.clientY;
+                const rect = devPanel.getBoundingClientRect();
+                initialLeft = rect.left; initialTop = rect.top;
+                devPanel.style.transform = 'none';
+                devPanel.style.left = initialLeft + 'px'; devPanel.style.top = initialTop + 'px';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - dragStartX; const dy = e.clientY - dragStartY;
+                devPanel.style.left = (initialLeft + dx) + 'px'; devPanel.style.top = (initialTop + dy) + 'px';
+            });
+
+            document.addEventListener('mouseup', () => { isDragging = false; });
+
+            document.getElementById('btnSetSpawn').addEventListener('click', () => {
+                let val = parseInt(document.getElementById('devSpawnLevel').value);
+                if (val >= 1 && val <= 38) { spawnLevel = val; updateUI(); }
+            });
+
+            document.getElementById('btnFill').addEventListener('click', () => {
+                let val = parseInt(document.getElementById('devFillLevel').value);
+                if (val >= 1 && val <= 38) {
+                    let count = 0;
+                    for (let i = 0; i < grid.length; i++) {
+                        if (grid[i] === 0 && count < 2) { grid[i] = val; count++; }
+                    }
+                    updateUI();
+                }
+            });
+
+            document.getElementById('btnPhase').addEventListener('click', () => {
+                let idx = parseInt(document.getElementById('devPhaseSelect').value);
+                if (idx >= 0 && idx < phases.length) {
+                    currentPhaseIndex = idx;
+                    spawnLevel = phases[idx].blocks[0].id;
+                    phaseTitle.textContent = `当前阶段：${phases[idx].name}`;
+                    phaseTitle.style.color = "#00ff00";
+                    grid = new Array(TOTAL_CELLS).fill(0);
+                    updateUI();
+                }
+            });
+
+            document.getElementById('btnLevelUp').addEventListener('click', () => {
+                const maxLvl = getCurrentPhaseMaxLevel();
+                for (let i = 0; i < grid.length; i++) {
+                    if (grid[i] > 0 && grid[i] < maxLvl) grid[i]++;
+                }
+                updateUI();
+            });
+
+            document.getElementById('btnLevelDown').addEventListener('click', () => {
+                const minLvl = getCurrentPhaseMinLevel();
+                for (let i = 0; i < grid.length; i++) {
+                    if (grid[i] > minLvl) grid[i]--;
+                }
+                updateUI();
+            });
+
+            document.getElementById('btnForce3x3').addEventListener('click', () => {
+                if (currentSize === 3) return;
+                const oldGrid = [...grid];
+                rebuildBoard(3);
+                grid = new Array(TOTAL_CELLS).fill(0);
+                grid[0] = oldGrid[0]; grid[1] = oldGrid[1]; grid[3] = oldGrid[2]; grid[4] = oldGrid[3]; 
+                updateUI();
+            });
+            document.getElementById('btnForce2x2').addEventListener('click', () => {
+                if (currentSize === 2) return;
+                rebuildBoard(2);
+                grid = new Array(TOTAL_CELLS).fill(0);
+                updateUI();
+            });
+
+            document.getElementById('btnForceLose').addEventListener('click', () => {
+                if (currentSize === 2) {
+                    rebuildBoard(3);
+                    grid = new Array(TOTAL_CELLS).fill(0);
+                }
+                const uniqueLevels = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+                for (let i = 0; i < TOTAL_CELLS; i++) {
+                    grid[i] = uniqueLevels[i];
+                }
+                updateUI();
+            });
+
+            // 全局鼠标跟随与右键
+            window.addEventListener('mousemove', (e) => {
+                if (floatingEl) {
+                    floatingEl.style.left = e.clientX + 'px';
+                    floatingEl.style.top = e.clientY + 'px';
+                }
+            });
+            window.addEventListener('contextmenu', (e) => {
+                e.preventDefault(); 
+                if (!isGameOver && !isTransitioning && gameUI.style.display !== 'none') cancelHolding();
+            });
+
+            spawnBox.addEventListener('click', () => {
+                if (gameUI.style.display === 'none') return;
+                if (!isGameOver && !isTransitioning && heldSource === null) pickUp('spawn', spawnLevel);
+            });
+            
+            spawnBox.addEventListener('contextmenu', (e) => {
+                e.preventDefault(); 
+                if (!isGameOver && !isTransitioning) { e.stopPropagation(); cancelHolding(); }
+            });
+
+            autoFillToggle.addEventListener('change', () => {
+                if (!autoFillToggle.checked) {
+                    clearTimeout(autoFillTimer); isAutoFilling = false;
+                } else { updateUI(); }
+            });
+
+        })();
+    </script>
+</body>
+</html>
